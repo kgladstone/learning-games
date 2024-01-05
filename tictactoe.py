@@ -82,13 +82,12 @@ class Board:
         self.board = [[self.BLANK_SQUARE, self.BLANK_SQUARE, self.BLANK_SQUARE],  # First row
              [self.BLANK_SQUARE, self.BLANK_SQUARE, self.BLANK_SQUARE],  # Second row
              [self.BLANK_SQUARE, self.BLANK_SQUARE, self.BLANK_SQUARE]]  # Third row
+        return self
     
     # Receive action and return next state and key information
     def step(self, action):
         row, col, value = action
         next_state = self.safe_set_value(row, col, value)
-        
-        self.render() # optional
 
         terminated = next_state.is_terminated()
         winner = next_state.winner()
@@ -429,7 +428,7 @@ class Agent:
                     
         return next_state_assessment
     
-    def select_move(self, state):
+    def policy(self, state):
         my_value = state.which_value_is_next()
         
         if self.is_human:
@@ -469,22 +468,28 @@ class Controller:
     
     def simulate(self):        
         print("** Begin Game **")
+        # Render environment
         self.board.render()
-        while True:
-            winner = self.board.winner()
-            terminated = self.board.is_terminated()
+        for _ in range(1000):
+                    
+            # Select action via policy
+            agent = self.next_agent()
+            print(agent.name)
+            action = agent.policy(self.board)
             
-            if terminated:
+            observation, reward, done = self.board.step(action)
+            self.board = observation
+
+            winner = self.board.winner()
+            
+            # Render environment
+            self.board.render()
+            
+            if done:
                 print("** Game Over! The winning value is {}**".format(winner))
                 break
-            else:
-                # Start new turn
-                agent = self.next_agent()
-                print(agent.name)
-                
-                action = agent.select_move(self.board)
-                self.board, reward, terminated = self.board.step(action)
-                
+
+            
 def main():
     agents = [
                 Agent("USA", is_human=False), 

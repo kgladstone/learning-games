@@ -374,7 +374,7 @@ class Agent:
         self.name = name
         self.board = board
         
-    def make_value_judgment(self, board_state, my_value): 
+    def make_value_judgment(self, next_state, my_value): 
         # The value of a given state is the expected reward from the paths leading from that state
         
         # Therefore, if the state is terminal, then assign a real value
@@ -385,8 +385,8 @@ class Agent:
         # to see if there are any bad outcomes. If there are, then assign a negative value to that state so we 
         # do not enable bad outcomes.
         
-        terminated = board_state.is_terminated()
-        winner = board_state.winner()
+        terminated = next_state.is_terminated()
+        winner = next_state.winner()
         
         if terminated:
             if winner == my_value:
@@ -395,7 +395,7 @@ class Agent:
                 return 0
 
         else:  
-            further_states = board_state.next_available_states()
+            further_states = next_state.next_available_states()
             for further_state in further_states:
                 # If opponent's move ends the game, then very bad
                 if further_state.winner() != my_value and further_state.winner() is not None:
@@ -477,5 +477,5 @@ class Controller:
 def main():
     game = Controller("Red", "Blue")
     game.simulate()  
-
+    
 main()

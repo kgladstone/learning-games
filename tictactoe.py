@@ -30,7 +30,14 @@ from itertools import product
 import pandas as pd
 
 class Board:
-
+    #------------- Class Variables -------------------------------
+    COLMAX = 3
+    ROWMAX = 3
+    
+    BLANK_SQUARE = 1
+    X_SQUARE = 2
+    O_SQUARE = 3
+    
     #------------- Static Methods -------------------------------
     
     @staticmethod
@@ -49,7 +56,11 @@ class Board:
         
         # Validate there are no negatives in the diff
         for element in board_as_list:
-            if element not in [1, 2, 3]:
+            if element not in [
+                Board.BLANK_SQUARE, 
+                Board.X_SQUARE, 
+                Board.O_SQUARE
+            ]:
                 print("Error: Trying to encode invalid element {}".format(element))
                 return ""
         
@@ -68,16 +79,17 @@ class Board:
     
     # Reset environment to initial state
     def reset(self):
-        self.COLMAX = 3
-        self.ROWMAX = 3
-        self.board = [[1, 1, 1],  # First row
-             [1, 1, 1],  # Second row
-             [1, 1, 1]]  # Third row
+        self.board = [[self.BLANK_SQUARE, self.BLANK_SQUARE, self.BLANK_SQUARE],  # First row
+             [self.BLANK_SQUARE, self.BLANK_SQUARE, self.BLANK_SQUARE],  # Second row
+             [self.BLANK_SQUARE, self.BLANK_SQUARE, self.BLANK_SQUARE]]  # Third row
     
     # Receive action and return next state and key information
     def step(self, action):
         row, col, value = action
         next_state = self.safe_set_value(row, col, value)
+        
+        self.render() # optional
+
         terminated = next_state.is_terminated()
         winner = next_state.winner()
         
@@ -90,7 +102,7 @@ class Board:
     #------------- Cell Operations  -------------------------------     
     
     def is_cell_empty(self, row, col):
-        return str(self.board[row][col]) == "1"
+        return int(self.board[row][col]) == self.BLANK_SQUARE
     
     def _is_board_valid(self):
         # Is board correct size
@@ -126,7 +138,7 @@ class Board:
         if not self._is_cell_valid(row, col):
             print("Error: Cell ({},{}) is not valid".format(row, col))
             return False
-        if not(value in [2, 3]):
+        if not(value in [self.X_SQUARE, self.O_SQUARE]):
             print("Error: Value {} illegal".format(value))
             return False
         if not (self.is_cell_empty(row, col)):
@@ -188,8 +200,7 @@ class Board:
     
     def safe_set_value(self, row, col, value):
         if not self._is_set_value_valid(row, col, value):
-            print("Error: Not valid to set value {} to this cell ({},{})".format(value, row, col))
-            return None
+            raise ValueError("Error: Not valid to set value {} to this cell ({},{})".format(value, row, col))
         else:
             self._set_value(row, col, value)
             return self
@@ -208,11 +219,11 @@ class Board:
         return self._encode_board_object_list(self._to_list())
           
     def value_to_string(self, value):
-        if str(value) == "1":
+        if int(value) == self.BLANK_SQUARE:
             return " "
-        elif str(value) == "2":
+        elif int(value) == self.X_SQUARE:
             return "X"
-        elif str(value) == "3":
+        elif int(value) == self.O_SQUARE:
             return "O"
         else:
             return value
@@ -244,14 +255,14 @@ class Board:
         for i in range(0, self.ROWMAX):
             for j in range(0, self.COLMAX):
                 value = self.get_value(i, j)
-                if value == 2:
+                if int(value) == self.X_SQUARE:
                     count_X += 1
-                elif value == 3:
+                elif int(value) == self.O_SQUARE:
                     count_O += 1
         if count_X > count_O:
-            return 3
+            return self.O_SQUARE
         else:
-            return 2
+            return self.X_SQUARE
 
     # Generate the list of possible boards if the value is successfully placed
     # Warning: does not valid that the turn is correct for that value
@@ -370,9 +381,9 @@ class Board:
         
 class Agent:
     
-    def __init__(self, name, board):
+    def __init__(self, name, is_human):
         self.name = name
-        self.board = board
+        self.is_human = is_human
         
     def make_value_judgment(self, next_state, my_value): 
         # The value of a given state is the expected reward from the paths leading from that state
@@ -402,8 +413,8 @@ class Agent:
                     return -1
             return 0
 
-    def assess_next_states(self, my_value):
-        next_states = self.board.next_available_states()
+    def assess_next_states(self, state, my_value):
+        next_states = state.next_available_states()
         next_state_assessment = pd.DataFrame(columns=['agent', 'next_state', 'agent_value_judgment'])
         
         for next_state in next_states:
@@ -418,32 +429,33 @@ class Agent:
                     
         return next_state_assessment
     
-    def select_move(self):
-        my_value = self.board.which_value_is_next()
-        next_state_assessment = self.assess_next_states(my_value)
-        print(next_state_assessment)
+    def select_move(self, state):
+        my_value = state.which_value_is_next()
         
-        value_list = next_state_assessment['agent_value_judgment'].tolist()        
-        value_max_indices = [
-            index for index, current_value in enumerate(value_list) if current_value == max(value_list)
-        ]     
-        value_max_index = random.sample(value_max_indices, 1)[0]
-                 
-        # Extract the value-maximizing next state
-        value_max_state_encoded = str(next_state_assessment['next_state'].to_list()[value_max_index])
-        value_max_state = Board(value_max_state_encoded)
-        next_move = self.board.extract_move_transition(value_max_state)
-        return next_move
-                    
-        
+        if self.is_human:
+            row = int(input("Which row do you want to place in (0, 1, or 2)"))
+            col = int(input("Which col do you want to place in (0, 1, or 2)"))    
+        else:
+            next_state_assessment = self.assess_next_states(state, my_value)
+            #print(next_state_assessment)
+
+            value_list = next_state_assessment['agent_value_judgment'].tolist()        
+            value_max_indices = [
+                index for index, current_value in enumerate(value_list) if current_value == max(value_list)
+            ]     
+            value_max_index = random.sample(value_max_indices, 1)[0]
+
+            # Extract the value-maximizing next state
+            value_max_state_encoded = str(next_state_assessment['next_state'].to_list()[value_max_index])
+            value_max_state = Board(value_max_state_encoded)
+            row, col, my_value = state.extract_move_transition(value_max_state)
+        return (row, col, my_value)
+           
 class Controller:
     
-    def __init__(self, agent_1_name, agent_2_name):
+    def __init__(self, agents):
         self.board = Board()
-        self.agents = [
-            Agent(agent_1_name, self.board), 
-            Agent(agent_2_name, self.board)
-        ]
+        self.agents = agents
         self.agent_index = 0
     
     def next_agent(self):
@@ -458,7 +470,6 @@ class Controller:
     def simulate(self):        
         print("** Begin Game **")
         self.board.render()
-
         while True:
             winner = self.board.winner()
             terminated = self.board.is_terminated()
@@ -470,12 +481,16 @@ class Controller:
                 # Start new turn
                 agent = self.next_agent()
                 print(agent.name)
-                action = agent.select_move()
+                
+                action = agent.select_move(self.board)
                 self.board, reward, terminated = self.board.step(action)
-                self.board.render()
                 
 def main():
-    game = Controller("Red", "Blue")
+    agents = [
+                Agent("USA", is_human=False), 
+                Agent("France", is_human=False)
+    ]
+    game = Controller(agents)
     game.simulate()  
     
 main()
